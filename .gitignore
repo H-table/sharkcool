@@ -1,0 +1,12 @@
+# build artifacts
+sharkcool-gui/build/
+sharkcool-gui/frontend/node_modules/
+sharkcool-gui/frontend/dist/
+
+# logs / captures
+*.hex
+__pycache__/
+
+# ide
+.idea/
+.vscode/
