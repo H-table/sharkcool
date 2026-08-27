@@ -3,6 +3,42 @@
 Reverse-engineered 2026-08-27/28 from live HID captures + official DLL
 analysis (32-bit ctypes harness, see tools/dll_probe*.py).
 
+## Round 5 (libusb 代理中间人 — 链路已通，app 稳定性待修)
+
+**重大进展**：管理员 + Program Files 可写 → TinyCC (tcc-0.9.27) 编译
+`tools/libusb_proxy.c` → 部署为 `D:\Program Files (x86)\BlackSharkEquipmentBox\libusb-1.0.dll`
+（原库改名 libusb-1.0_real.dll，备份在 tools/libusb-1.0_original.dll）。
+
+- 代理转发 Brb02CoolerComm.dll 的 14 个 + 装备箱 exe 的 3 个额外 libusb
+  导入（hotplug_register/deregister_callback, handle_events_timeout_completed
+  —— 缺这 3 个会导致 app 以 0xC0000139 退出！），并在
+  `libusb_interrupt_transfer` 处 fwrite 记录双向数据到 %TEMP%\libusb_proxy.log。
+- 32 位 python 验证：代理 init=0、devlist=10、open(0xE2B7,0x7001) 成功、
+  interrupt IN 可读 —— **代理转发 100% 工作**。
+- app（装备箱.exe）在代理下启动可达 `dialogMain::dialogMain 627` 但随后
+  CrashRpt 崩溃（01:47-01:50，4 次）。同期代理日志曾捕获
+  `ep=0x81 IN len=64 r=0: a5...`（app 已收包后崩）。
+- harness 中 comm DLL 仍报 `Failed to initialize libusb: NO_MEM`
+  （Qt applicationDirPath="\" 影响；与代理无关，对 USB 抓包通路无影响）。
+
+**下一步两条路**（任一即达终局）：
+1. 系统重启 → USBPcap 已绑定 C 口 root hub → 抓 30 秒 + 用户点模式2 → 帧到手。
+2. 修复代理下 app 崩溃（排查 QtWebEngine 交互期；日志已从 %02x 改 fwrite），
+   重跑 app → 拦截写帧。
+- tshark 已就绪：`C:\Program Files\Wireshark\tshark.exe`，命令见 Round 3 章节。
+
+## Round 4 findings (DLL 发送钩子结构解析)
+
+- `coolerRegisterSendCmd` 钩子在 32 位 harness 中稳定触发（即使无设备）。
+- hook 参数 = **Qt 元调用层结构**：反复出现签名
+  `[u32][u32][0x14][0xFFFFFFFF][0d0a++]`（0x14=20 字节配置结构、0d0a=CRLF）
+  —— 结合 Qt5Core 指针段（0x58/0x5A...）判断为 QMetaObject::activate 的
+  参数数组或 QByteArrayData 元数据；帧数据在本轮探测中始终未直接出现
+  （每次 "A5" 命中均为堆指针低位，非协议帧）。
+- **结论**：官方写帧的可靠来源 = USB 抓包（USBPcap，等重启覆盖 C 口 root hub）。
+- 另确认 `{18 00 00 00 / 08 00 00 00 / <ptr> / 59 00 00 00}` 结构稳定存在，
+  ptr 指向 Qt 内部对象（cookie 0x57/0x5A 结尾的 dword 为 Qt 分配器标记）。
+
 ## Round 3 (USBPcap 抓包基础设施 — 已打通 90%)
 
 拓扑解码：**散热器接 C 口 → 1A86:80A0/80A1 内部 Hub（非标准VID）
