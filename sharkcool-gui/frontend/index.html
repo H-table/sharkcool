@@ -27,11 +27,12 @@
         </section>
 
         <section class="card">
-            <div class="label">温度</div>
+            <div class="label">监控</div>
             <div class="temp-row">
                 <div class="temp-item"><span class="temp-label">GPU</span><span id="gpuT" class="temp-val">--</span><span class="temp-unit">°C</span></div>
-                <div class="temp-item"><span class="temp-label">CPU</span><span id="cpuT" class="temp-val">--</span><span class="temp-unit">°C</span></div>
+                <div class="temp-item"><span class="temp-label">CPU 负载</span><span id="cpuT" class="temp-val">--</span><span class="temp-unit">%</span></div>
             </div>
+            <div class="muted">CPU 温度需驱动级传感器（此机型 ACPI 未提供），显示负载代替</div>
             <div class="muted" id="update-time">等待数据…</div>
         </section>
 

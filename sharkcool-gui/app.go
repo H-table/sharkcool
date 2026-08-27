@@ -323,13 +323,15 @@ func (a *App) tempLoop() {
 	tick := time.NewTicker(5 * time.Second)
 	defer tick.Stop()
 	read := func() {
-		gpu, cpu := readTemps()
+		gpu, cpuTemp, cpuLoad := readTemps()
 		a.mu.Lock()
 		if gpu > 0 {
 			a.status.Temps["gpu"] = gpu
 		}
-		if cpu > 0 {
-			a.status.Temps["cpu"] = cpu
+		if cpuTemp > 0 {
+			a.status.Temps["cpu"] = cpuTemp
+		} else if cpuLoad > 0 {
+			a.status.Temps["cpuLoad"] = cpuLoad
 		}
 		a.mu.Unlock()
 		a.emit()
@@ -357,8 +359,8 @@ func hiddenCmd(name string, args ...string) *exec.Cmd {
 }
 
 // readTemps polls GPU via nvidia-smi and CPU via WMI thermal zone
-// (best effort; empty sources are skipped).
-func readTemps() (gpu, cpu int64) {
+// (fallback: CPU load % via performance counter) - all silent.
+func readTemps() (gpu int64, cpuTemp int64, cpuLoad int64) {
 	// GPU
 	if out, err := hiddenCmd("nvidia-smi",
 		"--query-gpu=temperature.gpu", "--format=csv,noheader").Output(); err == nil {
@@ -366,16 +368,23 @@ func readTemps() (gpu, cpu int64) {
 			gpu = v
 		}
 	}
-	// CPU (best effort WMI thermal zone)
-	_ = cpu // placeholder: WMI query below via powershell
+	// CPU temperature (best effort WMI thermal zone)
 	out, err := hiddenCmd("powershell", "-NoProfile", "-Command",
 		`(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature | Select-Object -First 1).CurrentTemperature`).Output()
 	if err == nil {
 		if v, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64); err == nil {
-			cpu = int64(v/10.0 - 273.15)
+			cpuTemp = int64(v/10.0 - 273.15)
 		}
 	}
-	return gpu, cpu
+	// CPU load % (always available)
+	out, err = hiddenCmd("powershell", "-NoProfile", "-Command",
+		`$s=(Get-Counter '\Processor(_Total)\% Processor Time' -MaxSamples 1).CounterSamples[0].CookedValue; [math]::Round($s)`).Output()
+	if err == nil {
+		if v, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64); err == nil {
+			cpuLoad = int64(v)
+		}
+	}
+	return gpu, cpuTemp, cpuLoad
 }
 
 func (a *App) setError(msg string) {

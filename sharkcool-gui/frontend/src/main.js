@@ -13,7 +13,7 @@ function render(st) {
     }
     if (st.temps) {
         $('gpuT').textContent = st.temps.gpu ?? '--';
-        $('cpuT').textContent = st.temps.cpu ?? '--';
+        $('cpuT').textContent = (st.temps.cpuLoad ?? st.temps.cpu) ?? '--';
     }
     if (st.lastUpdate) {
         $('update-time').textContent = '更新于 ' + new Date(st.lastUpdate).toLocaleTimeString();
