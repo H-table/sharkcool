@@ -174,11 +174,20 @@ func (a *App) GetSettings() Settings {
 	return a.settings
 }
 
-// SetFanMode changes the cooler's cooling mode (0..3).
-// NOTE: exact write-frame template is still being reverse engineered;
-// see PROTOCOL.md. Returns an informative error until confirmed.
+// modeFrames: SetCoolingConfig templates verified by USB capture (PROTOCOL.md
+// Round 7). A5 09 24 [00 00] [modeId] [RPM u16le] [byte] ...
+var modeFrames = map[int][]byte{
+	2: {0xA5, 0x09, 0x24, 0x00, 0x00, 0x03, 0x60, 0x0B, 0x40}, // RPM 2912
+	3: {0xA5, 0x09, 0x24, 0x00, 0x00, 0x04, 0xCE, 0x0D, 0xB1}, // RPM 3534
+}
+
+// SetFanMode changes the cooler's cooling mode (verified modes: 2, 3).
 func (a *App) SetFanMode(mode int) (bool, error) {
-	return false, fmt.Errorf("模式控制帧仍在逆向中，暂未开放（可从实验发送框尝试或查看 PROTOCOL.md）")
+	frame, ok := modeFrames[mode]
+	if !ok {
+		return false, fmt.Errorf("模式 %d 的写帧暂未实测（已实测：模式2、模式3，见 PROTOCOL.md）", mode)
+	}
+	return a.sendFrame(frame)
 }
 
 // SetFanSwitch turns the fan on/off. Same status as SetFanMode.

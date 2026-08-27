@@ -3,6 +3,40 @@
 Reverse-engineered 2026-08-27/28 from live HID captures + official DLL
 analysis (32-bit ctypes harness, see tools/dll_probe*.py).
 
+## ✅ Round 7: 写命令帧 100% 破解（2026-08-28 02:20 抓包实锤）
+
+**通道：`\\.\USBPcap3`（C 口链，1A86 hub + E2B7 散热器）** —— 之前所有
+抓包都错抓了 USBPcap1/2（A 口链）。USBPcapCMD + python 直解器
+(tools/pcap3.py)：
+
+- USBPcap 记录布局（1.5.4.0，28 字节头）：`hlen=rec[0:4]`，
+  `方向/端点=rec[21]`（0x81 IN），**`dlen=rec[23]`**，数据=rec[28:28+dlen]，
+  但**每帧第 1 字节实际是 A5**（rec[27] 处）= 完整帧 `A5 + 63B`。
+- **SetCoolingConfig（实测 3 次对照）：**
+  ```
+  模式2: A5 09 24 00 00 03 60 0B 40
+  模式3: A5 09 24 00 00 04 CE 0D B1
+  格式:  A5 09 24 [00 00] [模式ID] [RPM u16le] [byte] 0x00...
+         - len=0x24 (36B)，设备回 A5 05 24 00 E1 (配置确认)
+         - 模式2: modeId=03, RPM=0x0B60=2912
+         - 模式3: modeId=04, RPM=0x0DCE=3534
+  ```
+- **其他已确认命令**（双向）：
+  - `A5 06 26 [0x00/0x01][序号][校验]` = GetDeviceInfo 类请求 xN
+    （周期 ~2s；响应 `A5 09 26 00 00 [序号] ...` 与 `A5 13 26 ...`）
+  - `A5 13 24 00 01 01 14 [6×u16le 温度数据]` = IssueSystemInfo
+    （温度推送，事件触发；设备回 `A5 13 26 00 01 ...`）
+  - `A5 1A 07 ...` = 周期状态/传感器列表（电池/温度表，0.1s）
+  - IN 心跳 `A5 07 06 [RPM u16le][f2 u16le]`、状态 `A5 05 07 00 54`
+  - 配置确认 `A5 05 24 00 E1`
+- 设备配置描述符：EP 0x81 IN interrupt（64B）+ **BULK 端点 0x02/0x82**！
+
+## 抓包工具（已验证可复现）
+```
+USBPcapCMD.exe -d \\.\USBPcap3 -o cap.pcap -A --inject-descriptors
+python tools/pcap3.py cap.pcap   # 直解 64B 帧
+```
+
 ## Round 6 (libusb 代理 v2：Win32 纯 API + 调用追踪；app 失败点缩到 init 之后)
 
 - 对照实验定案：**真库下 app 稳定(30s+)，代理下退出** —— 代理相关。
