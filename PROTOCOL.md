@@ -3,6 +3,29 @@
 Reverse-engineered 2026-08-27/28 from live HID captures + official DLL
 analysis (32-bit ctypes harness, see tools/dll_probe*.py).
 
+## Round 3 (USBPcap 抓包基础设施 — 已打通 90%)
+
+拓扑解码：**散热器接 C 口 → 1A86:80A0/80A1 内部 Hub（非标准VID）
+→ ROOT_HUB30\5&1A4B2349 (root hub #2)**。另一条链（05E3:0610/0620 hub →
+ROOT_HUB30\5&345A21F6, root hub #1）是普通 A 口链。
+
+- USBPcap（1.5.4.0）已以管理员静默安装；`-I` 已初始化（USB3 捕获）。
+- **过滤驱动绑定**：手动 `UpperFilters=USBPcap` 注册表写到两个 root hub 的
+  PnP 枚举键，root hub #1 重启成功 → **usb1.pcap 能抓到完整子树**
+  （tshark 验证：`usb.transfer_type==1` (interrupt) 数据可提取）。
+- **root hub #2（C 口链）重启失败：`Device is pending system reboot`** —
+  USBPcap 官方要求一次系统重启才能让 filter 挂到 C 口 root hub。
+- `pnputil /restart-device`/`disable-device` 均无法绕过；**重启后重跑即可**：
+  ```
+  USBPcapCMD.exe -d \\.\USBPcap2 -o cap.pcap -A --inject-descriptors
+  tshark -r cap.pcap -Y 'usb.transfer_type==1' -T fields \
+    -e usb.endpoint_address -e usb.data_len -e usb.capdata
+  ```
+  （tshark 已装：C:\Program Files\Wireshark\tshark.exe）
+- 备用路径：把散热器换到任意 USB-A 口（root hub #1 的 filter 已生效）。
+- 竞品数据说明：A 链上有 Synaptics 触控板（0x81/8B 大量 interrupt）、
+  Razer 鼠标、Xbox 适配器（bulk）、ITE 048D 等，按 vendor 过滤即可。
+
 ## 官方 DLL 逆向工具链 (round 2 findings)
 
 32-bit Python (embed win32, `D:\Dev tools\Py311-embed32`) loads
