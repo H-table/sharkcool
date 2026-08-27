@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>黑鲨风神Pro 控制器</title>
+</head>
+<body>
+<div id="app">
+    <header>
+        <div class="brand">
+            <span class="logo">🌬️</span>
+            <h1>黑鲨风神Pro <small>SharkCool</small></h1>
+        </div>
+        <div class="conn">
+            <span id="conn-dot" class="dot off"></span>
+            <span id="conn-text">未连接</span>
+            <button id="connect-btn" class="btn" onclick="window.__connect()">连接</button>
+        </div>
+    </header>
+
+    <main>
+        <section class="card rpm-card">
+            <div class="label">风扇转速</div>
+            <div class="value"><span id="rpm">--</span><span class="unit">RPM</span></div>
+            <div class="bar"><div id="rpmbar" class="bar-fill"></div></div>
+        </section>
+
+        <section class="card">
+            <div class="label">温度</div>
+            <div class="temp-row">
+                <div class="temp-item"><span class="temp-label">GPU</span><span id="gpuT" class="temp-val">--</span><span class="temp-unit">°C</span></div>
+                <div class="temp-item"><span class="temp-label">CPU</span><span id="cpuT" class="temp-val">--</span><span class="temp-unit">°C</span></div>
+            </div>
+            <div class="muted" id="update-time">等待数据…</div>
+        </section>
+
+        <section class="card ctrl-card">
+            <div class="label">模式控制 <span class="beta">实验功能</span></div>
+            <div class="mode-row" id="mode-row">
+                <button class="mode-btn" data-mode="0">模式 0</button>
+                <button class="mode-btn" data-mode="1">模式 1</button>
+                <button class="mode-btn" data-mode="2">模式 2</button>
+                <button class="mode-btn" data-mode="3">模式 3</button>
+            </div>
+            <div class="switch-row">
+                <button id="fan-switch" class="btn ghost">风扇开关</button>
+                <label class="chk"><input type="checkbox" id="autostart" onchange="window.__auto()"/> 开机自启</label>
+            </div>
+            <div id="mode-result" class="muted"></div>
+        </section>
+
+        <section class="card console">
+            <div class="label">实验发送（A5 帧 hex）</div>
+            <div class="send-row">
+                <input id="raw-input" placeholder="如: 06 09 01 C2" spellcheck="false"/>
+                <button class="btn" onclick="window.__send()">发送</button>
+            </div>
+            <div id="raw-result" class="muted"></div>
+        </section>
+    </main>
+
+    <footer>
+        <span class="muted">协议: A5 [cmd] [len] [payload] · VID E2B7 / PID 7001 · 实验发送框可能导致设备异常，请谨慎使用</span>
+    </footer>
+</div>
+<script src="./src/main.js" type="module"></script>
+</body>
+</html>
