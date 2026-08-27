@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -344,11 +345,22 @@ func (a *App) tempLoop() {
 	}
 }
 
+// hiddenCmd runs a console child process without popping a window
+// (CREATE_NO_WINDOW) - required for GUI apps spawning CLI tools.
+func hiddenCmd(name string, args ...string) *exec.Cmd {
+	c := exec.Command(name, args...)
+	c.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+	}
+	return c
+}
+
 // readTemps polls GPU via nvidia-smi and CPU via WMI thermal zone
 // (best effort; empty sources are skipped).
 func readTemps() (gpu, cpu int64) {
 	// GPU
-	if out, err := exec.Command("nvidia-smi",
+	if out, err := hiddenCmd("nvidia-smi",
 		"--query-gpu=temperature.gpu", "--format=csv,noheader").Output(); err == nil {
 		if v, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64); err == nil {
 			gpu = v
@@ -356,7 +368,7 @@ func readTemps() (gpu, cpu int64) {
 	}
 	// CPU (best effort WMI thermal zone)
 	_ = cpu // placeholder: WMI query below via powershell
-	out, err := exec.Command("powershell", "-NoProfile", "-Command",
+	out, err := hiddenCmd("powershell", "-NoProfile", "-Command",
 		`(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature | Select-Object -First 1).CurrentTemperature`).Output()
 	if err == nil {
 		if v, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64); err == nil {
