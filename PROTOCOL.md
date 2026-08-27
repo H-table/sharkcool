@@ -3,7 +3,26 @@
 Reverse-engineered 2026-08-27/28 from live HID captures + official DLL
 analysis (32-bit ctypes harness, see tools/dll_probe*.py).
 
-## Round 5 (libusb 代理中间人 — 链路已通，app 稳定性待修)
+## Round 6 (libusb 代理 v2：Win32 纯 API + 调用追踪；app 失败点缩到 init 之后)
+
+- 对照实验定案：**真库下 app 稳定(30s+)，代理下退出** —— 代理相关。
+- proxy2（libusb_proxy2.c，TinyCC，零 CRT，CreateFileA/WriteFile 日志，
+  GetTempPathA→%TEMP%\libusb_proxy2.log）部署后：
+  - harness 全序：init=0、open(0xE2B7,0x7001) 成功、claim=0 —— **转发正确**。
+  - app 内：`[proxy] init real=... f=...` 且 **`init rc=0 ctx=...` ×2** ——
+    **libusb_init 在 app 里成功**，但 app 随即 exit=1，且未再调用
+    get_device_list/open —— 失败点缩到「init 之后、GetDeviceList 之前」。
+  - 推测：app 在该间隙做了运行时 GetProcAddress 取附加 API
+    （proxy2 已补 libusb_get_version/set_option/has_capability 导出，仍退出）
+    或依赖 libusb 内部行为（如 hotplug 回调注册时机）。
+  - **下一步首选**：给代理补全常用 libusb 导出集（get_string_descriptor_ascii、
+    control_transfer、bulk_transfer、alloc_transfer、get_configuration 等 ~20 个）
+    再试；备选：重启走 USBPcap（已 100% 就绪，见 Round 3）。
+- **恢复原厂**：验证后已把 app 目录 libusb-1.0.dll 恢复为真实库，
+  现 app 正常运行（备份：tools/libusb-1.0_original.dll、
+  app/libusb-1.0_real.dll；proxy 各版本在 tools/）。
+
+
 
 **重大进展**：管理员 + Program Files 可写 → TinyCC (tcc-0.9.27) 编译
 `tools/libusb_proxy.c` → 部署为 `D:\Program Files (x86)\BlackSharkEquipmentBox\libusb-1.0.dll`
