@@ -1,6 +1,34 @@
 # BRB02 Cooler Protocol Notes (黑鲨风神Pro / 黑鲨装备箱)
 
-Reverse-engineered 2026-08-27 from live HID captures (Windows, hidapi).
+Reverse-engineered 2026-08-27/28 from live HID captures + official DLL
+analysis (32-bit ctypes harness, see tools/dll_probe*.py).
+
+## 官方 DLL 逆向工具链 (round 2 findings)
+
+32-bit Python (embed win32, `D:\Dev tools\Py311-embed32`) loads
+Brb02CoolerComm.dll directly (Qt5Core etc. via os.add_dll_directory);
+
+- `coolerInit()` ✓ (returns 1)
+- `coolerRegisterSendCmd(cb)` — callback fires when the DLL's send path
+  runs (even without a device!). Callback receives a STRUCT pointer whose
+  layout contains Qt internals + a [size][alloc][ptr][0x59..] block;
+  config-size detected = 0x18 (24 = A5 + cmd + 0x14 + 20-byte struct!)
+- `coolerConnByUsb` = 3 args where arg1 is CALLED as a function pointer
+  (state callback); naive (vid,pid,iface) guesses crash → proper
+  signature: (cb_hid_state, userdata?, ...)
+- libusb fails with `LIBUSB_ERROR_NO_MEM` because Qt
+  applicationDirPath = "\" (no QCoreApplication). Preloading
+  libusb-1.0.dll does NOT fix; QCoreApplication construction from
+  ctypes (thiscall@Qt5Core `??0QCoreApplication@@QAE@AAHPAPADH@Z`)
+  still AVs on write 0x0 — needs a real Qt bootstrap (next round
+  options: tiny 32-bit C helper compiled with embedded Qt? or run the
+  probe as a Qt plugin loaded by the EXE? or USBPcap with elevation).
+
+## 已确认的帧格式
+
+Frame: `A5 [cmd:u8] [len:u8] [payload:len bytes]`, 64B report,
+no checksum visible (device→host side confirmed). Response frames often
+= request cmd + 2. Connect exchange decoded in detail below.
 
 ## Device
 
